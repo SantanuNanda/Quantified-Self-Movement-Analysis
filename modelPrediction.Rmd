@@ -1,0 +1,93 @@
+---
+title: "Quantified Self Movement Analysis"
+output: html_document
+---
+
+##Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+##Data
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+##Loading libraries and data
+
+```{r}
+setwd("C:/Users/Santanu/Desktop/R Data/C8W4")
+library(caret)
+library(randomForest)
+library(rpart)
+library(knitr)
+testingSet <- read.csv("pml-testing.csv")
+trainingSet <- read.csv("pml-training.csv")
+```
+
+##Cleaning the data
+```{r}
+dim(trainingSet)
+dim(testingSet)
+```
+First we partition the training set into a training(containing 60% of the data) and testing set(containing the remaining 40%).This will help us to predict based on testing partition before moving on to the actual prediction on the test set provided separately.   
+As we can see, there are a total of 160 variables in both these files. However we don't need the first 7 variables since they are only for identification purpose. Also we need to remove variables which majorly contain missing values to avoid error in our prediction model.
+
+```{r}
+inTrain  <- createDataPartition(trainingSet$classe, p=0.6, list=FALSE)
+training <- trainingSet[inTrain,]
+testing <- trainingSet[-inTrain,]
+training <- training[,-(1:5)]
+testing <- testing[,-(1:5)]
+zero <- nearZeroVar(training)
+training <- training[,-zero]
+testing <- testing[,-zero]
+no_NA  <- apply(!is.na(training), 2, sum) > (nrow(training)-1)
+training <- training[,no_NA]
+testing <- testing[,no_NA]
+dim(training)
+dim(testing)
+set.seed(12442)
+```
+So now, we have reduced the number of variables to 53 which are essential for making our prediction model.
+
+##Prediction Modelling
+###A. Decision Tree Modelling
+```{r cache= TRUE}
+model_dt <- train(classe~., data = training,method = "rpart")
+predict_dt <- predict(model_dt,testing)
+matrix_dt <- confusionMatrix(predict_dt,testing$classe)
+matrix_dt
+```
+
+###B. Random Forest Modelling
+```{r cache= TRUE}
+model_rf <- train(classe~., data = training,method = "rf")
+predict_rf <- predict(model_rf,testing)
+matrix_rf <- confusionMatrix(predict_rf,testing$classe)
+matrix_rf
+
+```
+
+###C. Generalised Boosted Modelling
+```{r cache= TRUE, results="hide"}
+model_gbm <- train(classe~., data = training,method = "gbm")
+```
+```{r cache=TRUE}
+predict_gbm <- predict(model_gbm,testing)
+matrix_gbm <- confusionMatrix(predict_gbm,testing$classe)
+matrix_gbm
+```
+
+##Conclusion
+From the analysis, we make a list of the accuracies of the various models used.
+```{r}
+matrix(c("Decision Tree","Random Forest","GBM",round(matrix_dt$overall[1]*100,2),round(matrix_rf$overall[1]*100,2),round(matrix_gbm$overall[1]*100,2)), nrow = 2, ncol = 3,byrow = TRUE,dimnames = list(c("","Accuracy"),c("","Methods","")))
+```
+It is clear that Random Forest gives the highest accuracy for our prediction. So we used that to predict on the actual test set.
+```{r}
+predict_test <- predict(model_rf,newdata = testingSet)
+predict_test
+```
